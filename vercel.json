@@ -1,0 +1,21 @@
+{
+  "builds": [
+    {
+      "src": "app.py",
+      "use": "@vercel/python",
+      "config": {
+        "postInstall": "pip install setuptools wheel && pip install -r requirements.txt"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "app.py"
+    },
+
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+      ]
+  ]
+}
