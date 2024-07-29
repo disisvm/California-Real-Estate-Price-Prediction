@@ -3,50 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <title>Real Estate Price Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <link href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places"></script> <!-- Replace YOUR_API_KEY with your actual API key -->
 </head>
 <body>
     <div class="container">
-        <h1 class="mt-5">Enter Details for Price Prediction</h1>
+        <h1 class="mt-5">California Real Estate Price Predictor.</h1>
+        <h2 class="mt-5">Enter Details for Price Prediction</h2>
         <form id="prediction-form">
             <div class="mb-3">
                 <label for="livingArea" class="form-label">Living Area (sq ft)</label>
-                <input type="number" class="form-control" id="livingArea" name="livingArea" required>
+                <input type="number" class="form-control" id="livingArea" name="livingArea" min="1" required>
             </div>
             <div class="mb-3">
                 <label for="bathrooms" class="form-label">Bathrooms</label>
-                <input type="number" class="form-control" id="bathrooms" name="bathrooms" required>
+                <input type="number" class="form-control" id="bathrooms" name="bathrooms" min="0" step="0.1" required>
             </div>
             <div class="mb-3">
                 <label for="bedrooms" class="form-label">Bedrooms</label>
-                <input type="number" class="form-control" id="bedrooms" name="bedrooms" required>
+                <input type="number" class="form-control" id="bedrooms" name="bedrooms" min="0" required>
             </div>
             <div class="mb-3">
+                <label for="hasGarage" class="form-label">Has Garage</label>
+                <select class="form-control" id="hasGarage" name="hasGarage" required>
+                    <option value="0">Not Available</option>
+                    <option value="1">Available</option>
+                </select>
+            </div>
+            <div class="mb-3" id="garageSpacesDiv" style="display:none;">
                 <label for="garageSpaces" class="form-label">Garage Spaces</label>
-                <input type="number" class="form-control" id="garageSpaces" name="garageSpaces" required>
-            </div>
-            <div class="mb-3">
-                <label for="hasGarage" class="form-label">Has Garage (0 or 1)</label>
-                <input type="number" class="form-control" id="hasGarage" name="hasGarage" required>
+                <input type="number" class="form-control" id="garageSpaces" name="garageSpaces" min="0">
             </div>
             <div class="mb-3">
                 <label for="yearBuilt" class="form-label">Year Built</label>
-                <input type="number" class="form-control" id="yearBuilt" name="yearBuilt" required>
+                <input type="number" class="form-control" id="yearBuilt" name="yearBuilt" min="1800" max="2020" required>
             </div>
             <div class="mb-3">
                 <label for="longitude" class="form-label">Longitude</label>
-                <input type="number" class="form-control" id="longitude" name="longitude" required>
+                <input type="number" class="form-control" id="longitude" name="longitude" step="any" required>
             </div>
             <div class="mb-3">
                 <label for="latitude" class="form-label">Latitude</label>
-                <input type="number" class="form-control" id="latitude" name="latitude" required>
+                <input type="number" class="form-control" id="latitude" name="latitude" step="any" required>
             </div>
             <div class="mb-3">
                 <label for="address" class="form-label">Address</label>
                 <input type="text" class="form-control" id="address" name="address" required>
+                <button type="button" class="btn btn-secondary mt-2" id="fetch-address">Fetch Address Details</button>
             </div>
             <div class="mb-3">
                 <label for="city" class="form-label">City</label>
@@ -55,6 +62,9 @@
             <div class="mb-3">
                 <label for="state" class="form-label">State</label>
                 <input type="text" class="form-control" id="state" name="state" required>
+                <div class="invalid-feedback" id="state-error">
+                    State must be California.
+                </div>
             </div>
             <div class="mb-3">
                 <label for="county" class="form-label">County</label>
@@ -62,29 +72,111 @@
             </div>
             <div class="mb-3">
                 <label for="homeType" class="form-label">Home Type</label>
-                <input type="text" class="form-control" id="homeType" name="homeType" required>
+                <select class="form-control" id="homeType" name="homeType" required>
+                    <option value="SINGLE_FAMILY">SINGLE_FAMILY</option>
+                    <option value="CONDO">CONDO</option>
+                    <option value="MULTI_FAMILY">MULTI_FAMILY</option>
+                    <option value="TOWNHOUSE">TOWNHOUSE</option>
+                    <option value="APARTMENT">APARTMENT</option>
+                </select>
             </div>
             <button type="submit" class="btn btn-primary">Predict</button>
+            <button type="reset" class="btn btn-secondary">Reset</button>
         </form>
         <div id="result" class="mt-4"></div>
     </div>
 
     <script>
         $(document).ready(function(){
-            var autocomplete;
-            autocomplete = new google.maps.places.Autocomplete((document.getElementById('address')), {
-                types: ['geocode'],
+            $('#hasGarage').change(function(){
+                if ($(this).val() == '1') {
+                    $('#garageSpacesDiv').show();
+                    $('#garageSpaces').prop('required',true);
+                } else {
+                    $('#garageSpacesDiv').hide();
+                    $('#garageSpaces').prop('required',false);
+                }
             });
 
-            google.maps.event.addListener(autocomplete, 'place_changed', function() {
-                var place = autocomplete.getPlace();
-                $('#latitude').val(place.geometry.location.lat());
-                $('#longitude').val(place.geometry.location.lng());
+            $('#address').autocomplete({
+                source: function(request, response) {
+                    $.ajax({
+                        url: 'https://api.opencagedata.com/geocode/v1/json',
+                        dataType: 'json',
+                        data: {
+                            'key': '0b933d77854547548631b4ef2672904f',
+                            'q': request.term,
+                            'limit': 5,
+                            'no_annotations': 1
+                        },
+                        success: function(data) {
+                            response($.map(data.results, function(item) {
+                                return {
+                                    label: item.formatted,
+                                    value: item.formatted,
+                                    lat: item.geometry.lat,
+                                    lng: item.geometry.lng,
+                                    components: item.components
+                                };
+                            }));
+                        }
+                    });
+                },
+                select: function(event, ui) {
+                    $('#latitude').val(ui.item.lat);
+                    $('#longitude').val(ui.item.lng);
+                    $('#city').val(ui.item.components.city || ui.item.components.town || ui.item.components.village);
+                    $('#state').val(ui.item.components.state);
+                    $('#county').val(ui.item.components.county);
+                }
+            });
 
-                var address_components = place.address_components;
-                address_components.forEach(function(component) {
-                    var types = component.types;
-                    if (types.indexOf('locality') > -1) {
-                        $('#city').val(component.long_name);
-                    }
-                    if (types.indexOf('administrative_area_level_1')
+            $('#fetch-address').on('click', function(){
+                var address = $('#address').val();
+                if (address) {
+                    $.ajax({
+                        url: '/geocode',
+                        method: 'GET',
+                        data: { address: address },
+                        success: function(data) {
+                            if (data.error) {
+                                alert(data.error);
+                            } else {
+                                $('#latitude').val(data.latitude);
+                                $('#longitude').val(data.longitude);
+                                $('#city').val(data.city);
+                                $('#state').val(data.state);
+                                $('#county').val(data.county);
+                            }
+                        }
+                    });
+                } else {
+                    alert('Please enter an address.');
+                }
+            });
+
+            $('#prediction-form').on('submit', function(event){
+                event.preventDefault();
+                var state = $('#state').val().trim().toLowerCase();
+                if (state !== 'california') {
+                    $('#state-error').show();
+                } else {
+                    $('#state-error').hide();
+                    $.ajax({
+                        url: '/predict',
+                        method: 'POST',
+                        data: $(this).serialize(),
+                        success: function(data){
+                            $('#result').html('<h4>Predicted Price: $' + data.prediction.toFixed(2) + '</h4>');
+                        }
+                    });
+                }
+            });
+
+            $('#state').on('input', function() {
+                $('#state-error').hide();
+            });
+        });
+    </script>
+</body>
+</html>

@@ -6,20 +6,25 @@ import requests
 app = Flask(__name__)
 
 # Load the model
-with open('optimized_random_forest_model.pkl', 'rb') as file:
+with open('optimized_model.pkl', 'rb') as file:
     model = pickle.load(file)
 
 # Load the preprocessor
 with open('preprocessor.pkl', 'rb') as file:
     preprocessor = pickle.load(file)
 
+
 @app.route('/')
 def home():
     return render_template('index.html')
 
+
 @app.route('/predict', methods=['POST'])
 def predict():
     data = request.form
+    # Check for empty fields and set defaults
+    garage_spaces = float(data['garageSpaces']) if data.get('garageSpaces') else 0
+
     features = {
         'livingArea^2': float(data['livingArea']) ** 2,
         'livingArea': float(data['livingArea']),
@@ -27,16 +32,16 @@ def predict():
         'livingArea bedrooms': float(data['livingArea']) * float(data['bedrooms']),
         'bed_bath_rooms': float(data['bedrooms']) * float(data['bathrooms']),
         'living_area_per_room': float(data['livingArea']) / float(data['bedrooms']),
-        'garageSpaces': float(data['garageSpaces']),
+        'garageSpaces': garage_spaces,
         'bedrooms': float(data['bedrooms']),
         'bedrooms^2': float(data['bedrooms']) ** 2,
         'living_area_per_rooms': float(data['livingArea']) / float(data['bedrooms']),
-        'hasGarage': float(data['hasGarage']),
+        'hasGarage': int(data['hasGarage']),
         'longitude': float(data['longitude']),
         'living_area_per_bathroom': float(data['livingArea']) / float(data['bathrooms']),
         'yearBuilt': float(data['yearBuilt']),
         'latitude': float(data['latitude']),
-        'garage_spaces_per_bedroom': float(data['garageSpaces']) / float(data['bedrooms']),
+        'garage_spaces_per_bedroom': garage_spaces / float(data['bedrooms']) if data.get('garageSpaces') else 0,
         'city': data['city'],
         'state': data['state'],
         'county': data['county'],
@@ -47,6 +52,7 @@ def predict():
     input_preprocessed = preprocessor.transform(input_df)
     prediction = model.predict(input_preprocessed)
     return jsonify({'prediction': prediction[0]})
+
 
 @app.route('/geocode', methods=['GET'])
 def geocode():
@@ -61,10 +67,11 @@ def geocode():
             'latitude': result['geometry']['lat'],
             'longitude': result['geometry']['lng'],
             'city': result['components'].get('city', ''),
-            'state': result['components'].get('state', ''),
+            'state': 'CA',
             'county': result['components'].get('county', '')
         })
     return jsonify({'error': 'Address not found'})
+
 
 if __name__ == '__main__':
     app.run(debug=True)
