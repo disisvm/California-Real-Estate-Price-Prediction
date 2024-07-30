@@ -1,0 +1,11 @@
+# Ignore everything
+*
+
+# Include only necessary files and directories
+!app.py
+!requirements.txt
+!vercel.json
+!static/
+!templates/
+!optimized_model.pkl
+!preprocessor.pkl
